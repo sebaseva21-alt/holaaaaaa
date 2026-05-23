@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dia del Patrimonio 2026 - Mapa Interactivo</title>
+<meta name="description" content="Mapa interactivo con la ruta optima para recorrer las actividades del Dia del Patrimonio 2026 en Valparaiso y Vina del Mar.">
+<meta property="og:title" content="Dia del Patrimonio 2026 - Mapa Interactivo">
+<meta property="og:description" content="Ruta optima para las actividades del Dia del Patrimonio en Valparaiso y Vina del Mar. 30 y 31 de mayo.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css"/>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;height:100vh;overflow:hidden}
+#map{position:absolute;top:0;left:0;right:0;bottom:0;z-index:1}
+.header{position:absolute;top:0;left:0;right:0;z-index:1000;background:linear-gradient(180deg,rgba(15,23,42,.97)0%,rgba(15,23,42,.75)65%,transparent 100%);padding:14px 20px 32px;pointer-events:none}
+.header>*{pointer-events:auto}
+.header-row{display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:20px;font-weight:800;background:linear-gradient(135deg,#f59e0b,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.5px}
+.header .sub{font-size:11px;color:#94a3b8;margin-top:1px}
+.share-btn{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;padding:8px 14px;border-radius:10px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+.share-btn:hover{background:rgba(255,255,255,.14);transform:scale(1.03)}
+.share-btn svg{width:14px;height:14px}
+.share-overlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);align-items:center;justify-content:center}
+.share-overlay.open{display:flex}
+.share-modal{background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:28px;width:340px;max-width:90vw;box-shadow:0 24px 64px rgba(0,0,0,.6)}
+.share-modal h3{font-size:16px;font-weight:700;margin-bottom:16px}
+.share-options{display:flex;flex-direction:column;gap:10px}
+.share-option{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:#e2e8f0;transition:all .15s;text-decoration:none}
+.share-option:hover{background:rgba(255,255,255,.1);transform:translateY(-1px)}
+.share-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.share-icon.wa{background:#25D366}
+.share-icon.tg{background:#2AABEE}
+.share-icon.cp{background:rgba(245,158,11,.2);color:#f59e0b}
+.share-close{margin-top:16px;width:100%;padding:10px;background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#94a3b8;font-family:inherit;font-size:13px;cursor:pointer}
+.share-close:hover{background:rgba(255,255,255,.05);color:#e2e8f0}
+.copied-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#22c55e;color:#052e16;padding:10px 24px;border-radius:10px;font-family:inherit;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(34,197,94,.3);z-index:99999;opacity:0;transition:opacity .3s;pointer-events:none}
+.copied-toast.show{opacity:1}
+.controls-bar{position:absolute;top:72px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;gap:8px;align-items:center}
+.toggle-group{display:flex;background:rgba(15,23,42,.92);backdrop-filter:blur(12px);border-radius:12px;padding:4px;border:1px solid rgba(255,255,255,.1);box-shadow:0 6px 24px rgba(0,0,0,.4)}
+.day-btn,.mode-btn{padding:9px 16px;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .3s ease;background:transparent;color:#94a3b8;white-space:nowrap}
+.day-btn.active-sat{background:linear-gradient(135deg,#f59e0b,#d97706);color:#1e293b;box-shadow:0 4px 15px rgba(245,158,11,.35)}
+.day-btn.active-sun{background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:white;box-shadow:0 4px 15px rgba(139,92,246,.35)}
+.mode-btn.active{background:rgba(255,255,255,.12);color:#f1f5f9}
+.day-btn:hover:not(.active-sat):not(.active-sun),.mode-btn:hover:not(.active){background:rgba(255,255,255,.07);color:#cbd5e1}
+.route-info{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(15,23,42,.93);backdrop-filter:blur(16px);border-radius:16px;padding:12px 22px;border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 32px rgba(0,0,0,.45);display:flex;gap:20px;align-items:center}
+.route-stat{text-align:center}
+.route-stat .value{font-size:18px;font-weight:700;color:#f59e0b}
+.route-stat .label{font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-top:1px}
+.route-divider{width:1px;height:32px;background:rgba(255,255,255,.08)}
+.city-label{padding:4px 12px;border-radius:8px;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;pointer-events:none}
+.city-label.valpo{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.25)}
+.city-label.vina{background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25)}
+.sidebar{position:absolute;top:0;right:0;width:370px;height:100vh;z-index:1000;background:rgba(15,23,42,.96);backdrop-filter:blur(16px);border-left:1px solid rgba(255,255,255,.07);transform:translateX(100%);transition:transform .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;padding:20px 18px}
+.sidebar.open{transform:translateX(0)}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px}
+.sidebar-close{position:sticky;top:0;float:right;z-index:10;background:rgba(255,255,255,.08);border:none;color:#94a3b8;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.sidebar-close:hover{background:rgba(255,255,255,.14);color:white}
+.sidebar h2{font-size:16px;font-weight:700;margin-bottom:3px}
+.sidebar .subtitle{font-size:11px;color:#64748b;margin-bottom:6px}
+.sidebar .tip{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:11px;color:#fbbf24;line-height:1.5}
+.sidebar .tip.purple{background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.15);color:#c4b5fd}
+.timeline{position:relative;padding-left:24px}
+.timeline::before{content:'';position:absolute;left:9px;top:20px;bottom:20px;width:2px;background:rgba(255,255,255,.06);border-radius:2px}
+.activity-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:13px 14px 13px 16px;margin-bottom:8px;cursor:pointer;transition:all .2s ease;position:relative}
+.activity-card::before{content:'';position:absolute;left:-19px;top:18px;width:10px;height:10px;border-radius:50%;background:#f59e0b;border:2px solid #1e293b}
+.activity-card.purple::before{background:#8b5cf6}
+.activity-card:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.14);transform:translateX(2px)}
+.card-step{position:absolute;top:11px;right:12px;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);color:#1e293b;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.card-step.purple{background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:white}
+.card-name{font-size:13px;font-weight:600;color:#f1f5f9;padding-right:28px;line-height:1.3}
+.card-meta{display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap}
+.card-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500;padding:2px 7px;border-radius:6px}
+.card-badge.time{color:#f59e0b;background:rgba(245,158,11,.1)}
+.card-badge.time.purple{color:#a78bfa;background:rgba(139,92,246,.1)}
+.card-badge.city-valpo{color:#fca5a5;background:rgba(239,68,68,.1)}
+.card-badge.city-vina{color:#93c5fd;background:rgba(59,130,246,.1)}
+.card-address{font-size:10px;color:#64748b;margin-top:4px}
+.card-notes{font-size:10px;color:#94a3b8;margin-top:4px;font-style:italic}
+.travel-seg{display:flex;align-items:center;gap:6px;padding:4px 0 4px 6px;font-size:10px;color:#475569;position:relative}
+.travel-seg svg{width:12px;height:12px;opacity:.5;flex-shrink:0}
+.toggle-sidebar{position:absolute;top:120px;right:16px;z-index:999;background:rgba(15,23,42,.9);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;width:42px;height:42px;border-radius:12px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(0,0,0,.3);transition:all .2s}
+.toggle-sidebar:hover{background:rgba(30,41,59,.95);transform:scale(1.05)}
+.leaflet-popup-content-wrapper{background:rgba(15,23,42,.96)!important;backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.1)!important;border-radius:14px!important;box-shadow:0 12px 40px rgba(0,0,0,.5)!important;color:#e2e8f0!important;padding:0!important}
+.leaflet-popup-content{margin:0!important;font-family:'Inter',sans-serif!important}
+.leaflet-popup-tip{background:rgba(15,23,42,.96)!important}
+.popup-content{padding:16px;min-width:230px}
+.popup-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;color:#f59e0b;background:rgba(245,158,11,.12)}
+.popup-badge.purple{color:#a78bfa;background:rgba(139,92,246,.12)}
+.popup-title{font-size:14px;font-weight:700;color:#f8fafc;margin-bottom:5px;line-height:1.3}
+.popup-addr{font-size:11px;color:#64748b;margin-bottom:6px}
+.popup-time{font-size:13px;font-weight:600;color:#f59e0b;margin-bottom:3px}
+.popup-time.purple{color:#a78bfa}
+.popup-notes{font-size:11px;color:#94a3b8;font-style:italic;border-top:1px solid rgba(255,255,255,.05);padding-top:7px;margin-top:7px}
+.popup-gmaps{display:inline-flex;align-items:center;gap:5px;margin-top:10px;padding:6px 12px;border-radius:8px;background:rgba(59,130,246,.12);color:#60a5fa;font-size:11px;font-weight:600;text-decoration:none;transition:all .15s}
+.popup-gmaps:hover{background:rgba(59,130,246,.2)}
+.popup-sep{border-top:1px solid rgba(255,255,255,.05);margin:12px 0}
+.leaflet-routing-container{display:none!important}
+.legend{position:absolute;bottom:76px;right:16px;z-index:1000;background:rgba(15,23,42,.88);backdrop-filter:blur(12px);border-radius:10px;padding:8px 12px;border:1px solid rgba(255,255,255,.08);font-size:10px}
+.legend-item{display:flex;align-items:center;gap:6px;margin:3px 0;color:#94a3b8}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+@keyframes dash{to{stroke-dashoffset:-40}}
+.leaflet-overlay-pane svg path{animation:dash 1.2s linear infinite}
+@media(max-width:640px){.sidebar{width:100%}.header h1{font-size:17px}.controls-bar{flex-direction:column;gap:6px;top:64px}.route-info{gap:12px;padding:10px 14px;flex-wrap:wrap;justify-content:center}.route-stat .value{font-size:15px}.share-btn span{display:none}.legend{bottom:72px;right:10px}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="header">
+  <div class="header-row">
+    <div><h1>Dia del Patrimonio 2026</h1><p class="sub">Valparaiso &amp; Vina del Mar &mdash; 30 y 31 de mayo</p></div>
+    <button class="share-btn" onclick="openShare()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg><span>Compartir</span></button>
+  </div>
+</div>
+<div class="controls-bar">
+  <div class="toggle-group">
+    <button class="day-btn active-sat" id="btnSat" onclick="switchDay('saturday')">Sab 30</button>
+    <button class="day-btn" id="btnSun" onclick="switchDay('sunday')">Dom 31</button>
+  </div>
+  <div class="toggle-group">
+    <button class="mode-btn active" id="btnCar" onclick="switchMode('car')">&#128663; Auto</button>
+    <button class="mode-btn" id="btnWalk" onclick="switchMode('foot')">&#128694; A pie</button>
+  </div>
+</div>
+<button class="toggle-sidebar" onclick="toggleSidebar()" title="Ver itinerario">&#9776;</button>
+<div class="route-info" id="routeInfo">
+  <div class="route-stat" id="statActivities"><div class="value">9</div><div class="label">Actividades</div></div>
+  <div class="route-divider"></div>
+  <div class="route-stat" id="statStops"><div class="value">6</div><div class="label">Paradas</div></div>
+  <div class="route-divider"></div>
+  <div class="route-stat" id="statDistance"><div class="value">&mdash;</div><div class="label">Distancia</div></div>
+  <div class="route-divider"></div>
+  <div class="route-stat" id="statTime"><div class="value">&mdash;</div><div class="label">Traslado</div></div>
+  <div class="route-divider"></div>
+  <div class="route-stat" id="statHours"><div class="value">09:00-16:15</div><div class="label">Horario</div></div>
+</div>
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Inicio</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Sabado</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div> Domingo</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Fin</div>
+</div>
+<div class="sidebar" id="sidebar">
+  <button class="sidebar-close" onclick="toggleSidebar()">&#10005;</button>
+  <h2 id="sidebarTitle">Itinerario &mdash; Sabado 30</h2>
+  <div class="subtitle" id="sidebarSubtitle">Ruta optima para recorrer todas las actividades</div>
+  <div class="tip" id="sidebarTip"></div>
+  <div class="timeline" id="activityList"></div>
+</div>
+<div class="share-overlay" id="shareOverlay" onclick="if(event.target===this)closeShare()">
+  <div class="share-modal">
+    <h3>Compartir este mapa</h3>
+    <div class="share-options">
+      <a class="share-option" id="shareWA" href="#" target="_blank" rel="noopener"><div class="share-icon wa"><svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></div><div>WhatsApp</div></a>
+      <a class="share-option" id="shareTG" href="#" target="_blank" rel="noopener"><div class="share-icon tg"><svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></div><div>Telegram</div></a>
+      <button class="share-option" onclick="copyLink()"><div class="share-icon cp"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></div><div>Copiar enlace</div></button>
+    </div>
+    <button class="share-close" onclick="closeShare()">Cerrar</button>
+  </div>
+</div>
+<div class="copied-toast" id="copiedToast">Enlace copiado</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js"></script>
+<script>
+var activities = {
+  saturday: [
+    {name:"BancoEstado, Patrimonio de Chile",address:"Centro Cultural Valparaiso",lat:-33.0465,lng:-71.6135,start:"09:00",end:"16:00",notes:"Apertura continua",city:"Valparaiso"},
+    {name:"Recorrido por la Tesoreria Regional",address:"Prat 765, Valparaiso",lat:-33.0438,lng:-71.6270,start:"09:00",end:"14:00",notes:"Muestra de objetos antiguos",city:"Valparaiso"},
+    {name:"Santander Abre sus Puertas",address:"Prat 855, Valparaiso",lat:-33.0442,lng:-71.6282,start:"09:00",end:"17:00",notes:"Incluye rutas guiadas y activaciones",city:"Valparaiso"},
+    {name:"Recorrido Palacio Cerro Castillo",address:"Callao 398, Vina del Mar",lat:-33.0200,lng:-71.5510,start:"09:30",end:"15:30",notes:"Ultimo ingreso 15:30 (Fila cierra)",city:"Vina del Mar"},
+    {name:"Bus Electrico Visita Vina (Bloque 1)",address:"Frontis Teatro Municipal, Vina del Mar",lat:-33.0252,lng:-71.5512,start:"10:00",end:"11:15",notes:"Recorrido patrimonial ludico",city:"Vina del Mar"},
+    {name:"Memorias que actuan (Bloque 1)",address:"Plaza Vergara S/N, Vina del Mar",lat:-33.0245,lng:-71.5522,start:"11:00",end:"11:40",notes:"Estatuas del foyer cobran vida",city:"Vina del Mar"},
+    {name:"Bus Electrico Visita Vina (Bloque 2)",address:"Frontis Teatro Municipal, Vina del Mar",lat:-33.0252,lng:-71.5512,start:"12:00",end:"13:15",notes:"Recorrido patrimonial ludico",city:"Vina del Mar"},
+    {name:"Memorias que actuan (Bloque 2)",address:"Plaza Vergara S/N, Vina del Mar",lat:-33.0245,lng:-71.5522,start:"13:00",end:"13:40",notes:"Estatuas del foyer cobran vida",city:"Vina del Mar"},
+    {name:"Bus Electrico Visita Vina (Bloque 3)",address:"Frontis Teatro Municipal, Vina del Mar",lat:-33.0252,lng:-71.5512,start:"15:00",end:"16:15",notes:"Recorrido patrimonial ludico",city:"Vina del Mar"}
+  ],
+  sunday: [
+    {name:"Recorrido Castillo Brunet",address:"Iberia 104, Vina del Mar",lat:-33.0185,lng:-71.5495,start:"09:00",end:"16:00",notes:"Grupos folcloricos a las 12:00 y 14:30",city:"Vina del Mar"},
+    {name:"BancoEstado, Patrimonio de Chile",address:"Centro Cultural Valparaiso",lat:-33.0465,lng:-71.6135,start:"09:30",end:"16:00",notes:"Apertura continua",city:"Valparaiso"},
+    {name:"Visita al Edificio Armada de Chile",address:"Sotomayor 592, Valparaiso",lat:-33.0386,lng:-71.6294,start:"10:00",end:"18:00",notes:"Horario continuado (Comandancia en Jefe)",city:"Valparaiso"},
+    {name:"Bus Electrico Visita Vina (Bloque 1)",address:"Frontis Teatro Municipal, Vina del Mar",lat:-33.0252,lng:-71.5512,start:"10:00",end:"11:15",notes:"Recorrido patrimonial ludico",city:"Vina del Mar"},
+    {name:"Bus Electrico Visita Vina (Bloque 2)",address:"Frontis Teatro Municipal, Vina del Mar",lat:-33.0252,lng:-71.5512,start:"12:00",end:"13:15",notes:"Recorrido patrimonial ludico",city:"Vina del Mar"},
+    {name:"Bus Electrico Visita Vina (Bloque 3)",address:"Frontis Teatro Municipal, Vina del Mar",lat:-33.0252,lng:-71.5512,start:"15:00",end:"16:15",notes:"Recorrido patrimonial ludico",city:"Vina del Mar"}
+  ]
+};
+
+var optimalOrder = {
+  saturday: [1,2,0,3,4,5,6,7,8],
+  sunday: [0,3,4,5,2,1]
+};
+
+var tips = {
+  saturday: "Recomendacion: empieza temprano en calle Prat (Valparaiso) y cruza a Vina del Mar antes de las 10:00 para alcanzar el Palacio Cerro Castillo y los buses electricos.",
+  sunday: "Recomendacion: parte en el Castillo Brunet (Vina del Mar) temprano. Los grupos folcloricos son a las 12:00 y 14:30. Luego cruza a Valparaiso para cerrar en la Armada y BancoEstado."
+};
+
+var map = L.map('map',{center:[-33.034,-71.59],zoom:14,zoomControl:false});
+L.control.zoom({position:'bottomleft'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; OSM &copy; CARTO',maxZoom:19
+}).addTo(map);
+
+var valpoIcon = L.divIcon({className:'',html:'<div class="city-label valpo">Valparaiso</div>',iconSize:[100,24],iconAnchor:[50,12]});
+var vinaIcon = L.divIcon({className:'',html:'<div class="city-label vina">Vina del Mar</div>',iconSize:[100,24],iconAnchor:[50,12]});
+L.marker([-33.045,-71.620],{icon:valpoIcon,interactive:false}).addTo(map);
+L.marker([-33.015,-71.552],{icon:vinaIcon,interactive:false}).addTo(map);
+
+var currentDay = 'saturday';
+var currentMode = 'car';
+var markers = [];
+var routeControl = null;
+
+function createIcon(idx,day,isFirst,isLast,count){
+  var base = day==='saturday'?'#f59e0b':'#8b5cf6';
+  var bg = base;
+  if(isFirst) bg='#22c55e';
+  if(isLast) bg='#ef4444';
+  var txt = (day==='sunday'&&!isFirst&&!isLast)?'white':'#1e293b';
+  var sz = count>1?38:32;
+  var badge = count>1?'<div style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#3b82f6;color:white;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #1e293b">'+count+'</div>':'';
+  return L.divIcon({
+    className:'custom-marker',
+    html:'<div style="width:'+sz+'px;height:'+sz+'px;background:'+bg+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:'+txt+';font-family:Inter,sans-serif;font-weight:700;font-size:'+(count>1?14:13)+'px;border:3px solid rgba(255,255,255,0.9);box-shadow:0 4px 14px rgba(0,0,0,0.5),0 0 0 4px '+bg+'33;position:relative;">'+(idx+1)+badge+'</div>',
+    iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],popupAnchor:[0,-sz/2-4]
+  });
+}
+
+function haversine(a,b){
+  var R=6371;var dLat=(b.lat-a.lat)*Math.PI/180;var dLng=(b.lng-a.lng)*Math.PI/180;
+  var x=Math.pow(Math.sin(dLat/2),2)+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.pow(Math.sin(dLng/2),2);
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+function getUniqueWPs(dayData,order){
+  var seen={};var wps=[];
+  for(var i=0;i<order.length;i++){
+    var a=dayData[order[i]];var key=a.lat.toFixed(4)+','+a.lng.toFixed(4);
+    if(!seen[key]){seen[key]=true;wps.push(a);}
+  }
+  return wps;
+}
+
+function renderDay(day){
+  markers.forEach(function(m){map.removeLayer(m)});
+  markers=[];
+  if(routeControl){map.removeControl(routeControl);routeControl=null;}
+
+  var dayData=activities[day];
+  var order=optimalOrder[day];
+  var color=day==='saturday'?'#f59e0b':'#8b5cf6';
+  var cls=day==='saturday'?'':'purple';
+  var uniqueWPs=getUniqueWPs(dayData,order);
+  var ordered=order.map(function(idx,step){var a=dayData[idx];return {name:a.name,address:a.address,lat:a.lat,lng:a.lng,start:a.start,end:a.end,notes:a.notes,city:a.city,step:step};});
+
+  var locMap={};var locOrder=[];
+  ordered.forEach(function(a){
+    var key=a.lat.toFixed(4)+','+a.lng.toFixed(4);
+    if(!locMap[key]){locMap[key]={lat:a.lat,lng:a.lng,acts:[a]};locOrder.push(key);}
+    else locMap[key].acts.push(a);
+  });
+  var locs=locOrder.map(function(k){return locMap[k]});
+
+  locs.forEach(function(loc,mi){
+    var isFirst=mi===0,isLast=mi===locs.length-1;
+    var icon=createIcon(mi,day,isFirst,isLast,loc.acts.length);
+    var html='<div class="popup-content">';
+    html+='<div class="popup-badge '+cls+'">Parada '+(mi+1)+' de '+locs.length+'</div>';
+    loc.acts.forEach(function(a,ai){
+      if(ai>0) html+='<div class="popup-sep"></div>';
+      html+='<div class="popup-title">'+a.name+'</div>';
+      html+='<div class="popup-addr">'+a.address+'</div>';
+      html+='<div class="popup-time '+cls+'">'+a.start+' &ndash; '+a.end+'</div>';
+      if(a.notes) html+='<div class="popup-notes">'+a.notes+'</div>';
+    });
+    html+='<a class="popup-gmaps" href="https://www.google.com/maps/dir/?api=1&destination='+loc.lat+','+loc.lng+'" target="_blank" rel="noopener">Abrir en Google Maps</a>';
+    html+='</div>';
+    var m=L.marker([loc.lat,loc.lng],{icon:icon}).addTo(map).bindPopup(html,{maxWidth:300});
+    markers.push(m);
+  });
+
+  var waypoints=uniqueWPs.map(function(w){return L.latLng(w.lat,w.lng)});
+  routeControl=L.Routing.control({
+    waypoints:waypoints,
+    router:L.Routing.osrmv1({serviceUrl:'https://router.project-osrm.org/route/v1',profile:currentMode==='car'?'car':'foot'}),
+    lineOptions:{styles:[{color:'rgba(0,0,0,0.35)',opacity:1,weight:8},{color:color,opacity:0.8,weight:5,dashArray:'10,8'}],addWaypoints:false},
+    createMarker:function(){return null},addWaypoints:false,fitSelectedRoutes:false,show:false
+  }).addTo(map);
+
+  routeControl.on('routesfound',function(e){
+    var r=e.routes[0];
+    var km=(r.summary.totalDistance/1000).toFixed(1);
+    var mins=Math.round(r.summary.totalTime/60);
+    document.querySelector('#statDistance .value').textContent=km+' km';
+    document.querySelector('#statDistance .value').style.color=color;
+    document.querySelector('#statTime .value').textContent=mins+' min';
+    document.querySelector('#statTime .value').style.color=color;
+  });
+
+  document.querySelector('#statActivities .value').textContent=dayData.length;
+  document.querySelector('#statActivities .value').style.color=color;
+  document.querySelector('#statStops .value').textContent=locs.length;
+  document.querySelector('#statStops .value').style.color=color;
+  var t0=ordered[0].start,t1=ordered[ordered.length-1].end;
+  document.querySelector('#statHours .value').textContent=t0+' - '+t1;
+  document.querySelector('#statHours .value').style.color=color;
+
+  var dayLabel=day==='saturday'?'Sabado 30':'Domingo 31';
+  document.getElementById('sidebarTitle').textContent='Itinerario - '+dayLabel;
+  var tipEl=document.getElementById('sidebarTip');
+  tipEl.textContent=tips[day];
+  tipEl.className='tip'+(day==='sunday'?' purple':'');
+
+  var listEl=document.getElementById('activityList');
+  listEl.innerHTML='';
+  var cardIdx=0;
+
+  locs.forEach(function(loc,li){
+    if(li>0){
+      var prev=locs[li-1];
+      var dist=haversine(prev,loc);
+      var walkMin=Math.round(dist/4.5*60);
+      var carMin=Math.max(1,Math.round(dist/25*60));
+      var seg=document.createElement('div');
+      seg.className='travel-seg';
+      var time=currentMode==='car'?carMin:walkMin;
+      var modeLabel=currentMode==='car'?'en auto':'caminando';
+      seg.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> '+dist.toFixed(1)+' km &middot; ~'+time+' min '+modeLabel;
+      listEl.appendChild(seg);
+    }
+    loc.acts.forEach(function(a){
+      var card=document.createElement('div');
+      card.className='activity-card'+(cls?' purple':'');
+      var cityBadge=a.city==='Valparaiso'?'<span class="card-badge city-valpo">Valparaiso</span>':'<span class="card-badge city-vina">Vina del Mar</span>';
+      card.innerHTML='<div class="card-step '+cls+'">'+(cardIdx+1)+'</div><div class="card-name">'+a.name+'</div><div class="card-meta"><span class="card-badge time '+cls+'">'+a.start+' - '+a.end+'</span>'+cityBadge+'</div><div class="card-address">'+a.address+'</div>'+(a.notes?'<div class="card-notes">'+a.notes+'</div>':'');
+      card.addEventListener('click',function(){
+        map.setView([a.lat,a.lng],16);
+        markers.forEach(function(m){
+          var p=m.getLatLng();
+          if(Math.abs(p.lat-a.lat)<0.001&&Math.abs(p.lng-a.lng)<0.001) m.openPopup();
+        });
+      });
+      listEl.appendChild(card);
+      cardIdx++;
+    });
+  });
+
+  map.fitBounds(L.latLngBounds(waypoints).pad(0.15));
+}
+
+function switchDay(day){
+  currentDay=day;
+  document.getElementById('btnSat').className=day==='saturday'?'day-btn active-sat':'day-btn';
+  document.getElementById('btnSun').className=day==='sunday'?'day-btn active-sun':'day-btn';
+  renderDay(day);
+}
+
+function switchMode(mode){
+  currentMode=mode;
+  document.getElementById('btnCar').className=mode==='car'?'mode-btn active':'mode-btn';
+  document.getElementById('btnWalk').className=mode==='foot'?'mode-btn active':'mode-btn';
+  renderDay(currentDay);
+}
+
+function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open')}
+
+function openShare(){document.getElementById('shareOverlay').classList.add('open');setupShareLinks()}
+function closeShare(){document.getElementById('shareOverlay').classList.remove('open')}
+
+function setupShareLinks(){
+  var url=window.location.href;
+  var text='Mira este mapa interactivo del Dia del Patrimonio 2026 en Valparaiso y Vina del Mar';
+  document.getElementById('shareWA').href='https://wa.me/?text='+encodeURIComponent(text+' '+url);
+  document.getElementById('shareTG').href='https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(text);
+}
+
+function copyLink(){
+  var url=window.location.href;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(showToast);
+  }else{
+    var ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast();
+  }
+  closeShare();
+}
+
+function showToast(){
+  var t=document.getElementById('copiedToast');t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2200);
+}
+
+renderDay('saturday');
+</script>
+</body>
+</html>
